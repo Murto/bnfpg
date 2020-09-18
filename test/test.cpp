@@ -1,6 +1,8 @@
+#include <cassert>
+
 #include "bnfpg.hpp"
 
-constexpr static const char maths_grammar[] =
+constexpr static const char maths[] =
 
   // non terminals
   "expression = add expression ;"
@@ -24,7 +26,7 @@ constexpr static const char maths_grammar[] =
   "non zero = \"1\" | \"2\" | \"3\" | \"4\" | \"5\" | \"6\" | \"7\" | \"8\" | \"9\" ;"
   "digit = \"0\" | \"1\" | \"2\" | \"3\" | \"4\" | \"5\" | \"6\" | \"7\" | \"8\" | \"9\" ;";
 
-
 int main() {
-  using maths_parser = bnfpg::parser<maths_grammar>;
+  using maths_grammar = bnfpg::grammar<maths>;
+  assert(bnfpg::valid<maths_grammar>("1 + 1"));
 }
