@@ -4,6 +4,7 @@
 
 #include "ct_string.hpp"
 #include "lex.hpp"
+#include "parse.hpp"
 
 namespace bnfpg {
 
@@ -12,6 +13,7 @@ struct grammar {
   using string = ct_string<cs>;
   using sequence = std::make_index_sequence<string::size>;
   using tokens = typename lex_result<string, sequence>::type;
+  using tree = typename parse_result<tokens>::type;
 
   template <typename it_type>
   constexpr static bool valid([[maybe_unused]] it_type begin, [[maybe_unused]] it_type end) {
