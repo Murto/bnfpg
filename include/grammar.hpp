@@ -3,6 +3,7 @@
 #include <utility>
 
 #include "ct_string.hpp"
+#include "format.hpp"
 #include "lex.hpp"
 #include "parse.hpp"
 
@@ -14,6 +15,7 @@ struct grammar {
   using sequence = std::make_index_sequence<string::size>;
   using tokens = typename lex_result<string, sequence>::type;
   using tree = typename parse_result<tokens>::type;
+  using formatted = typename format_result<tree>::type;
 
   template <typename it_type>
   constexpr static bool valid([[maybe_unused]] it_type begin, [[maybe_unused]] it_type end) {
