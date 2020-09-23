@@ -1,139 +1,66 @@
 #pragma once
 
+#include <type_traits>
+
 #include "parse.hpp"
+#include "util.hpp"
 
 namespace bnfpg {
 
 namespace {
 
-/**
- * Expands grammar rules with many sequences into many grammar rules with
- * single sequences
- */
-template <typename tree>
-struct expand;
+template <typename rule0, typename rule1>
+struct reduce_rule;
+
+template <typename n0, typename... ss0, typename n1, typename... ss1>
+struct reduce_rule<ast::rule<n0, ss0...>, ast::rule<n1, ss1...>> {
+  using type = ast::rule<n1, ss0..., ss1...>;
+};
+
+template <typename rules>
+using reduce_rules = foldl<reduce_rule, ast::rule<void>, rules>;
+
+template <typename rule>
+struct symbol_of;
 
 template <typename n, typename... ss>
-struct expand<ast::rule<n, ss...>> {
-  template <typename s> struct rulify { using type = ast::rule<n, s>; };
-  using type = typename map<rulify, ast::rules<ss...>>::type;
+struct symbol_of<ast::rule<n, ss...>> {
+  using type = n;
 };
 
-template <typename... rs>
-struct expand<ast::rules<rs...>> {
-  using type = typename concat<typename expand<rs>::type...>::type;
-};
-
-template <typename n, typename s, typename... rs>
-struct expand<ast::rules<ast::rule<n, s>, rs...>> {
-  using rule = ast::rule<n, s>;
-  using type = typename append<rule, typename expand<ast::rules<rs...>>::type>::type;
-};
-
-template <>
-struct expand<ast::rules<>> {
-  using type = ast::rules<>;
+template <typename symbol, typename rules>
+struct rules_of {
+  template <typename rule>
+  struct pred {
+    constexpr static const bool value = std::is_same<symbol, typename symbol_of<rule>::type>::value;
+  };
+  using type = typename filter<pred, rules>::type;
 };
 
 /**
- * Flattens singleton sequences into their nested ast component
+ * Squashes `ast::rule`s for the same nonterminal into a single `ast::rule`
  */
 template <typename tree>
-struct flatten {
-  using type = tree;
-};
-
-template <typename s>
-struct flatten<ast::none_or_one<ast::none_or_one<s>>> {
-  using type = typename flatten<ast::none_or_one<s>>::type;
-};
-
-template <typename s>
-struct flatten<ast::none_or_one<ast::none_or_more<s>>> {
-  using type = typename flatten<ast::none_or_more<s>>::type;
-};
-
-template <typename s>
-struct flatten<ast::none_or_more<ast::none_or_one<s>>> {
-  using type = typename flatten<ast::none_or_more<s>>::type;
-};
-
-template <typename s>
-struct flatten<ast::none_or_more<ast::none_or_more<s>>> {
-  using type = typename flatten<ast::none_or_more<s>>::type;
-};
-
-template <typename s>
-struct flatten<ast::none_or_one<ast::sequence<s>>> {
-  using type = typename flatten<ast::none_or_one<s>>::type;
-};
-
-template <typename s>
-struct flatten<ast::none_or_more<ast::sequence<s>>> {
-  using type = typename flatten<ast::none_or_more<s>>::type;
-};
-
-template <typename... ss>
-struct flatten<ast::sequence<ss...>> {
-  using type = ast::sequence<typename flatten<ss>::type...>;
-};
+struct squash;
 
 template <typename... rs>
-struct flatten<ast::rules<rs...>> {
-  using type = ast::rules<typename flatten<rs>::type...>;
-};
+struct squash<ast::rules<rs...>> {
 
-/**
- * Simplifies grammar rules by removing `none_or_one`s, and instead generating
- * all possible rules.
- *
- * Note: Assumes that rules are a pair consisting of a name and a sequence.
- */
-template <typename tree>
-struct simplify;
+  // Get unique list of nonterminals
+  using symbols = typename unique<ast::rules<typename symbol_of<rs>::type...>>::type;
 
-template <>
-struct simplify<ast::sequence<>> {
-  using type = list<>;
-};
+  template <typename symbol>
+  using pred_wrapper = rules_of<symbol, ast::rules<rs...>>;
 
-template <typename s>
-struct simplify {
-  using type = ast::sequence<s>;
-};
+  // Constuct a list of predicates, each associated with a unique nonterminal
+  using rule_map = typename map<pred_wrapper, symbols>::type;
 
-template <typename... ss0, typename... ss1>
-struct simplify<ast::sequence<ast::none_or_one<ast::sequence<ss0...>>, ss1...>> {
-  using nested = typename simplify<ast::sequence<ss0...>>::type;
-  template <typename prefix> struct branchify { using type = typename simplify<typename concat<prefix, ast::sequence<ss1...>>::type>::type; };
-  using type = typename map<branchify, nested>::type;
-};
-
-template <typename... ss, typename s>
-struct simplify<ast::sequence<ast::none_or_one<s>, ss...>> {
-  using next = typename simplify<ast::sequence<ss...>>::type;
-  template <typename suffix> struct branchify { using type = typename concat<ast::none_or_one<s>, suffix>::type; };
-  using type = typename concat<next, typename map<branchify, next>::type>::type;
-};
-
-template <typename n, typename s>
-struct simplify<ast::rule<n, s>> {
-  using branches = typename simplify<s>::type;
-  template <typename suffix> struct rulify { using type = ast::rule<n, suffix>; };
-  using type = typename rewrap<typename map<rulify, branches>::type, ast::rules>::type;
-};
-
-template <typename... rs>
-struct simplify<ast::rules<rs...>> {
-  using type = typename concat<typename simplify<rs>::type...>::type;
+  using type = typename map<reduce_rules, rule_map>::type;
 };
 
 template <typename tree>
 struct format {
-  using expanded = typename expand<tree>::type;
-  using flattened = typename flatten<expanded>::type;
-  using simplified = typename simplify<flattened>::type;
-  using type = simplified;
+  using type = typename squash<tree>::type;
 };
 
 } // anonymous namespace

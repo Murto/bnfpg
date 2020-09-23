@@ -1,6 +1,8 @@
 #pragma once
 
+#include <type_traits>
 #include <utility>
+
 #include "util.hpp"
 
 namespace bnfpg {
@@ -11,7 +13,7 @@ namespace token {
  * Word token
  */
 template <char... cs>
-struct word;
+struct symbol;
 
 /**
  * String token
@@ -25,39 +27,9 @@ struct string;
 struct equals;
 
 /**
- * Comma token
- */
-struct comma;
-
-/**
- * Quote token
- */
-struct quote;
-
-/**
  * Pipe token
  */
 struct pipe;
-
-/**
- * Left bracket token
- */
-struct left_bracket;
-
-/**
- * Right bracket token
- */
-struct right_bracket;
-
-/**
- * Left brace token
- */
-struct left_brace;
-
-/**
- * Right brace token
- */
-struct right_brace;
 
 /**
  * Semicolon token
@@ -73,104 +45,29 @@ struct ch {
   constexpr static char value = c;
 };
 
-template <typename parts, typename chars>
-struct lex_word;
-
-/**
- * Handle generic character
- */
-template <typename... ps, char c, typename... cs>
-struct lex_word<list<ps...>, list<ch<c>, cs...>> {
-  using result = lex_word<list<ps..., ch<c>>, list<cs...>>;
-  using type = typename result::type;
-  using unused = typename result::unused;
+template <char c>
+struct valid_symbol_char {
+  constexpr static const bool value = c == '_' || c == '-' || ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z');
 };
 
 /**
- * Handle end of word cases
+ * Handles lexing of symbols
  */
-template <typename... ps, typename... cs>
-struct lex_word<list<ps...>, list<ch<' '>, cs...>> {
-  using type = token::word<ps::value...>;
-  using unused = list<ch<' '>, cs...>;
+template <typename chars, typename symbol = token::symbol<>, bool valid = true>
+struct lex_symbol;
+
+template <char c0, char c1, typename... cs, char... ps>
+struct lex_symbol<list<ch<c0>, ch<c1>, cs...>, token::symbol<ps...>, true> {
+  static_assert(valid_symbol_char<c0>::value, "Invalid symbol character");
+  using next = lex_symbol<list<ch<c1>, cs...>, token::symbol<ps..., c0>, valid_symbol_char<c1>::value>;
+  using type = typename next::type;
+  using unused = typename next::unused;
 };
 
-template <typename... ps, typename... cs>
-struct lex_word<list<ps...>, list<ch<'\t'>, cs...>> {
-  using type = token::word<ps::value...>;
-  using unused = list<ch<'\t'>, cs...>;
-};
-
-template <typename... ps, typename... cs>
-struct lex_word<list<ps...>, list<ch<'\n'>, cs...>> {
-  using type = token::word<ps::value...>;
-  using unused = list<ch<'\n'>, cs...>;
-};
-
-template <typename... ps, typename... cs>
-struct lex_word<list<ps...>, list<ch<'\r'>, cs...>> {
-  using type = token::word<ps::value...>;
-  using unused = list<ch<'\r'>, cs...>;
-};
-
-template <typename... ps, typename... cs>
-struct lex_word<list<ps...>, list<ch<'='>, cs...>> {
-  using type = token::word<ps::value...>;
-  using unused = list<ch<'='>, cs...>;
-};
-
-template <typename... ps, typename... cs>
-struct lex_word<list<ps...>, list<ch<','>, cs...>> {
-  using type = token::word<ps::value...>;
-  using unused = list<ch<','>, cs...>;
-};
-
-template <typename... ps, typename... cs>
-struct lex_word<list<ps...>, list<ch<'"'>, cs...>> {
-  using type = token::word<ps::value...>;
-  using unused = list<ch<'"'>, cs...>;
-};
-
-template <typename... ps, typename... cs>
-struct lex_word<list<ps...>, list<ch<'\''>, cs...>> {
-  using type = token::word<ps::value...>;
-  using unused = list<ch<'\''>, cs...>;
-};
-
-template <typename... ps, typename... cs>
-struct lex_word<list<ps...>, list<ch<'|'>, cs...>> {
-  using type = token::word<ps::value...>;
-  using unused = list<ch<'|'>, cs...>;
-};
-
-template <typename... ps, typename... cs>
-struct lex_word<list<ps...>, list<ch<'['>, cs...>> {
-  using type = token::word<ps::value...>;
-  using unused = list<ch<'['>, cs...>;
-};
-
-template <typename... ps, typename... cs>
-struct lex_word<list<ps...>, list<ch<']'>, cs...>> {
-  using type = token::word<ps::value...>;
-  using unused = list<ch<']'>, cs...>;
-};
-
-template <typename... ps, typename... cs>
-struct lex_word<list<ps...>, list<ch<'{'>, cs...>> {
-  using type = token::word<ps::value...>;
-  using unused = list<ch<'{'>, cs...>;
-};
-
-template <typename... ps, typename... cs>
-struct lex_word<list<ps...>, list<ch<'}'>, cs...>> {
-  using type = token::word<ps::value...>;
-  using unused = list<ch<'}'>, cs...>;
-};
-
-template <typename... ps, typename... cs>
-struct lex_word<list<ps...>, list<ch<';'>, cs...>> {
-  using type = token::word<ps::value...>;
-  using unused = list<ch<';'>, cs...>;
+template <typename... cs, char... ps>
+struct lex_symbol<list<cs...>, token::symbol<ps...>, false> {
+  using type = token::symbol<ps...>;
+  using unused = list<cs...>;
 };
 
 /**
@@ -193,9 +90,9 @@ struct lex_string<list<ch<'"'>, ps...>, list<ch<c>, cs...>> {
   using unused = typename string::unused;
 };
 
-template <typename... ps, typename p, typename... cs>
-struct lex_string<list<ch<'"'>, p, ps...>, list<ch<'"'>, cs...>> {
-  using type = token::string<'"', p::value, ps::value...>;
+template <typename... ps, typename... cs>
+struct lex_string<list<ch<'"'>, ps...>, list<ch<'"'>, cs...>> {
+  using type = token::string<ps::value...>;
   using unused = list<cs...>;
 };
 
@@ -213,9 +110,9 @@ struct lex_string<list<ch<'\''>, ps...>, list<ch<c>, cs...>> {
   using unused = typename string::unused;
 };
 
-template <typename... ps, typename p, typename... cs>
-struct lex_string<list<ch<'\''>, p, ps...>, list<ch<'\''>, cs...>> {
-  using type = token::string<'\'', p::value, ps::value...>;
+template <typename... ps, typename... cs>
+struct lex_string<list<ch<'\''>, ps...>, list<ch<'\''>, cs...>> {
+  using type = token::string<ps::value...>;
   using unused = list<cs...>;
 };
 
@@ -247,12 +144,12 @@ struct lex<list<ts...>, list<ch<'\r'>, cs...>> {
 };
 
 /**
- * Handle word case
+ * Handle symbol case
  */
 template <typename... ts, char c, typename... cs>
 struct lex<list<ts...>, list<ch<c>, cs...>> {
-  using word = lex_word<list<>, list<ch<c>, cs...>>;
-  using type = typename lex<list<ts..., typename word::type>, typename word::unused>::type;
+  using symbol = lex_symbol<list<ch<c>, cs...>>;
+  using type = typename lex<list<ts..., typename symbol::type>, typename symbol::unused>::type;
 
 };
 
@@ -260,16 +157,8 @@ struct lex<list<ts...>, list<ch<c>, cs...>> {
  * Handle equals case
  */
 template <typename... ts, typename... cs>
-struct lex<list<ts...>, list<ch<'='>, cs...>> {
+struct lex<list<ts...>, list<ch<':'>, ch<':'>, ch<'='>, cs...>> {
   using type = typename lex<list<ts..., token::equals>, list<cs...>>::type;
-};
-
-/**
- * Handle comma case
- */
-template <typename... ts, typename... cs>
-struct lex<list<ts...>, list<ch<','>, cs...>> {
-  using type = typename lex<list<ts..., token::comma>, list<cs...>>::type;
 };
 
 /**
@@ -293,38 +182,6 @@ struct lex<list<ts...>, list<ch<'\''>, cs...>> {
 template <typename... ts, typename... cs>
 struct lex<list<ts...>, list<ch<'|'>, cs...>> {
   using type = typename lex<list<ts..., token::pipe>, list<cs...>>::type;
-};
-
-/**
- * Handle left-bracket case
- */
-template <typename... ts, typename... cs>
-struct lex<list<ts...>, list<ch<'['>, cs...>> {
-  using type = typename lex<list<ts..., token::left_bracket>, list<cs...>>::type;
-};
-
-/**
- * Handle right-bracket case
- */
-template <typename... ts, typename... cs>
-struct lex<list<ts...>, list<ch<']'>, cs...>> {
-  using type = typename lex<list<ts..., token::right_bracket>, list<cs...>>::type;
-};
-
-/**
- * Handle left-brace case
- */
-template <typename... ts, typename... cs>
-struct lex<list<ts...>, list<ch<'{'>, cs...>> {
-  using type = typename lex<list<ts..., token::left_brace>, list<cs...>>::type;
-};
-
-/**
- * Handle right-brace case
- */
-template <typename... ts, typename... cs>
-struct lex<list<ts...>, list<ch<'}'>, cs...>> {
-  using type = typename lex<list<ts..., token::right_brace>, list<cs...>>::type;
 };
 
 /**
