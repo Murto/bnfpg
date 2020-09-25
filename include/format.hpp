@@ -58,9 +58,42 @@ struct squash<ast::rules<rs...>> {
   using type = typename map<reduce_rules, rule_map>::type;
 };
 
+/**
+ * Merges adjacent terminals into a single terminal
+ */
+template <typename tree>
+struct reduce_terminals;
+
+template <char... cs0, char... cs1, typename... ss>
+struct reduce_terminals<ast::sequence<ast::terminal<cs0...>, ast::terminal<cs1...>, ss...>> {
+  using type = typename reduce_terminals<ast::sequence<ast::terminal<cs0..., cs1...>, ss...>>::type;
+};
+
+template <typename s, typename... ss>
+struct reduce_terminals<ast::sequence<s, ss...>> {
+  using type = typename prepend<s, typename reduce_terminals<ast::sequence<ss...>>::type>::type;
+};
+
+template <>
+struct reduce_terminals<ast::sequence<>> {
+  using type = ast::sequence<>;
+};
+
+template <typename n, typename... ss>
+struct reduce_terminals<ast::rule<n, ss...>> {
+  using type = ast::rule<n, typename reduce_terminals<ss>::type...>;
+};
+
+template <typename... rs>
+struct reduce_terminals<ast::rules<rs...>> {
+  using type = ast::rules<typename reduce_terminals<rs>::type...>;
+};
+
 template <typename tree>
 struct format {
-  using type = typename squash<tree>::type;
+  using squashed = typename squash<tree>::type;
+  using reduced = typename reduce_terminals<squashed>::type;
+  using type = reduced;
 };
 
 } // anonymous namespace
